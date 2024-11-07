@@ -14,10 +14,10 @@ def windowsize():
     return args
 
 def checkerboard(size, screen):
-    # draws the screen
+    # draws the checkerboard for the background
 
     screen.fill( (0, 0, 0) )
-    color = (255, 255, 255) # blue
+    color = (255, 255, 255)
     for i in range(0,size.width,2):
         for j in range(0,size.height,2):
             rect = pygame.Rect(i*20, j*20, 20, 20)
@@ -26,6 +26,14 @@ def checkerboard(size, screen):
         for j in range(1,size.height,2):
             rect = pygame.Rect(i*20, j*20, 20, 20)
             pygame.draw.rect(screen, color, rect)
+
+def draw_snake(screen, snake_position):
+    # draws the snake
+
+    color = (0, 255, 0)
+    for t in snake_position:
+        rect = pygame.Rect(t[1]*20, t[0]*20, 20, 20)
+        pygame.draw.rect(screen, color, rect)
 
 def snake():
     # main function for the game
@@ -37,6 +45,7 @@ def snake():
     clock = pygame.time.Clock()
     pygame.display.set_caption("Snake")
 
+    snake_position = [(10,5),(10,6),(10,7)] # initial position of the snake
     game_running = True
 
     # game loop
@@ -53,6 +62,8 @@ def snake():
                     game_running = False
         
         checkerboard(size, screen)
+        draw_snake(screen, snake_position)
+
         pygame.display.update()
 
     pygame.quit()
