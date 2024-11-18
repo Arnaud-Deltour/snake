@@ -40,18 +40,43 @@ class CheckerBoard:
 
 class Snake:
 
-    def __init__(self, position, color, tile_size):
+    def __init__(self, position, color, size, tile_size, direction):
         self._position = position
         self._color = color
+        self._size = size
         self._tile_size = tile_size
+        self._direction = direction
 
     def __repr__(self):
         return f"Snake in {self._position}"
 
+    # drawing the snake
     def draw(self, screen):
         for p in self._position:
             tile = Tile(p[0],p[1],self._tile_size,self._color)
             tile.draw(screen)
+
+    # making the snake move
+    def move(self):
+        self._position.insert(0, ((self._position[0][0] + self._direction[0])%self._size.height, (self._position[0][1] + self._direction[1])%self._size.width))
+        self._position.pop()
+
+    # changing the direction of the snake
+    def up(self):
+        if self._direction != (1,0):
+            self._direction = (-1,0)
+
+    def down(self):
+        if self._direction != (-1,0):
+            self._direction = (1,0)
+
+    def right(self):
+        if self._direction != (0,-1):
+            self._direction = (0,1)
+
+    def left(self):
+        if self._direction != (0,1):
+            self._direction = (0,-1)
 
 def windowsize():
     # using argparse to change the window size if wanted
@@ -68,6 +93,8 @@ def windowsize():
 def game():
     # main function for the game
     DEFAULT_TILE_SIZE = 20
+    DEFAULT_STARTING_SNAKE = [(10,7),(10,6),(10,5)]
+    DEFAULT_DIRECTION = (0,1)
 
     # initialisation
     size = windowsize()
@@ -77,7 +104,7 @@ def game():
     pygame.display.set_caption("Snake")
 
     checkerboard = CheckerBoard(size, (0,0,0), (255,255,255), DEFAULT_TILE_SIZE)
-    snake = Snake([(10,5),(10,6),(10,7)], (0,255,0), DEFAULT_TILE_SIZE) # initial position of the snake
+    snake = Snake(DEFAULT_STARTING_SNAKE, (0,255,0), size, DEFAULT_TILE_SIZE, DEFAULT_DIRECTION) # initial position of the snake
     game_running = True
 
     # game loop
@@ -89,10 +116,28 @@ def game():
             # quit game
             if event.type == pygame.QUIT:
                 game_running = False
+
             elif event.type == pygame.KEYDOWN:
+                # quit game
                 if event.key == pygame.K_q:
                     game_running = False
+                
+                # move snake
+                if event.key == pygame.K_UP:
+                    snake.up()
+                    break
+                if event.key == pygame.K_DOWN:
+                    snake.down()
+                    break
+                if event.key == pygame.K_RIGHT:
+                    snake.right()
+                    break
+                if event.key == pygame.K_LEFT:
+                    snake.left()
+                    break
         
+        snake.move()
+
         checkerboard.draw(screen)
         snake.draw(screen)
 
