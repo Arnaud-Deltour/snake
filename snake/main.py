@@ -1,5 +1,6 @@
 import pygame
 import argparse
+import random
 
 class Tile:
 
@@ -58,9 +59,12 @@ class Snake:
 
     # making the snake move
     def move(self, fruit):
+        # moving the head, the snake is one tile longer
         self._position.insert(0, ((self._position[0][0] + self._direction[0])%self._size.height, (self._position[0][1] + self._direction[1])%self._size.width))
+        
+        # cheking if the fruit was eaten
         if fruit.eating(self._position[0]):
-            pass
+            fruit.move(self._size)
         else:
             self._position.pop()
 
@@ -91,12 +95,18 @@ class Fruit:
     def __repr__(self):
         return f"Fruit in {self._position}"
 
+    # draws the fruit
     def draw(self, screen):
         tile = Tile(self._position[0],self._position[1],self._tile_size,self._color)
         tile.draw(screen)
 
+    # test if the snake_head is where the fruit is
     def eating(self, snake_head):
         return self._position == snake_head
+
+    # randomly moves the fruit, taking the size of the game
+    def move(self, size):
+        self._position = (random.randint(0, size.height - 1), random.randint(0, size.width - 1))
 
 def windowsize():
     # using argparse to change the window size if wanted
