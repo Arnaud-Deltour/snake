@@ -1,5 +1,6 @@
 import pygame
 import argparse
+import random
 
 class Tile:
 
@@ -57,9 +58,15 @@ class Snake:
             tile.draw(screen)
 
     # making the snake move
-    def move(self):
+    def move(self, fruit):
+        # moving the head, the snake is one tile longer
         self._position.insert(0, ((self._position[0][0] + self._direction[0])%self._size.height, (self._position[0][1] + self._direction[1])%self._size.width))
-        self._position.pop()
+        
+        # cheking if the fruit was eaten
+        if fruit.eating(self._position[0]):
+            fruit.move(self._size)
+        else:
+            self._position.pop()
 
     # changing the direction of the snake
     def up(self):
@@ -77,6 +84,29 @@ class Snake:
     def left(self):
         if self._direction != (0,1):
             self._direction = (0,-1)
+
+class Fruit:
+
+    def __init__(self, position, color, tile_size):
+        self._position = position
+        self._color = color
+        self._tile_size = tile_size
+
+    def __repr__(self):
+        return f"Fruit in {self._position}"
+
+    # draws the fruit
+    def draw(self, screen):
+        tile = Tile(self._position[0],self._position[1],self._tile_size,self._color)
+        tile.draw(screen)
+
+    # test if the snake_head is where the fruit is
+    def eating(self, snake_head):
+        return self._position == snake_head
+
+    # randomly moves the fruit, taking the size of the game
+    def move(self, size):
+        self._position = (random.randint(0, size.height - 1), random.randint(0, size.width - 1))
 
 def windowsize():
     # using argparse to change the window size if wanted
@@ -105,6 +135,7 @@ def game():
 
     checkerboard = CheckerBoard(size, (0,0,0), (255,255,255), DEFAULT_TILE_SIZE)
     snake = Snake(DEFAULT_STARTING_SNAKE, (0,255,0), size, DEFAULT_TILE_SIZE, DEFAULT_DIRECTION) # initial position of the snake
+    fruit = Fruit((3,3), (255,0,0), DEFAULT_TILE_SIZE)
     game_running = True
 
     # game loop
@@ -122,7 +153,7 @@ def game():
                 if event.key == pygame.K_q:
                     game_running = False
                 
-                # move snake
+                # change the direction of the snake
                 if event.key == pygame.K_UP:
                     snake.up()
                     break
@@ -136,9 +167,10 @@ def game():
                     snake.left()
                     break
         
-        snake.move()
+        snake.move(fruit)
 
         checkerboard.draw(screen)
+        fruit.draw(screen)
         snake.draw(screen)
 
         pygame.display.update()
