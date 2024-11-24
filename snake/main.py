@@ -51,6 +51,9 @@ class Snake:
     def __repr__(self):
         return f"Snake in {self._position}"
 
+    def __len__(self):
+        return len(self._position)
+
     # drawing the snake
     def draw(self, screen):
         for p in self._position:
@@ -131,7 +134,7 @@ def game():
     pygame.init()
     screen = pygame.display.set_mode( (size.width*DEFAULT_TILE_SIZE, size.height*DEFAULT_TILE_SIZE) )
     clock = pygame.time.Clock()
-    pygame.display.set_caption("Snake")
+    pygame.display.set_caption("Snake - score : 0")
 
     checkerboard = CheckerBoard(size, (0,0,0), (255,255,255), DEFAULT_TILE_SIZE)
     snake = Snake(DEFAULT_STARTING_SNAKE, (0,255,0), size, DEFAULT_TILE_SIZE, DEFAULT_DIRECTION) # initial position of the snake
@@ -172,6 +175,8 @@ def game():
         checkerboard.draw(screen)
         fruit.draw(screen)
         snake.draw(screen)
+
+        pygame.display.set_caption(f"Snake - score : {len(snake) - 3}")
 
         pygame.display.update()
 
