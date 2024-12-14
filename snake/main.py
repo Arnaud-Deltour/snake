@@ -159,6 +159,11 @@ class Board(Subject, Observer):
         self.remove_object(obj)
         self.create_fruit()
 
+    @property
+    def objects(self) -> list[GameObject]:
+        """Return objects."""
+        return self._objects
+
 class CheckerBoard(GameObject):
     """Checkerboard as a background for the game."""
 
@@ -330,4 +335,4 @@ def game() -> NoReturn:
     pygame.quit()
     quit(0)
 
-game()
+# game()

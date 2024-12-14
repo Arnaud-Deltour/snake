@@ -1,1 +1,1 @@
-from .main import Tile
+from .main import Tile, CheckerBoard, Snake, Board, Fruit, Dir
