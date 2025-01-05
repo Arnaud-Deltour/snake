@@ -5,11 +5,37 @@ import abc
 import argparse
 import enum
 import random
+import re
 from collections.abc import Iterator
 from typing import NoReturn
 
 import pygame
 
+
+class SnakeException(Exception):
+
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
+
+class GameOver(SnakeException):
+
+    def __init__(self) -> None:
+        super().__init__("Game Over")
+
+class SnakeError(SnakeException):
+
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
+
+class IntRangeError(SnakeError):
+
+    def __init__(self, value: int, arg: str, min: int, max: int) -> None:
+        super().__init__(f"Value {value} of {arg} is out of allowed range [{min};{max}].")
+
+class ColorError(SnakeError):
+
+    def __init__(self, value: str, arg: str) -> None:
+        super().__init__(f"Wrong color ({value}) for argument {arg}.")
 
 class Observer(abc.ABC):
     """Observers class."""
@@ -18,7 +44,7 @@ class Observer(abc.ABC):
         """Init."""
         super().__init__()
 
-    def notify_object_eaten(self, obj: GameObject) -> None:
+    def notify_object_eaten(self, obj: Fruit) -> None:
         """Object eaten."""
 
     def notify_object_moved(self, obj: GameObject) -> None:
@@ -51,7 +77,7 @@ class Subject(abc.ABC):
 class Tile:
     """Tile object."""
 
-    def __init__(self, row: int, column: int, color: tuple[int,int,int]) -> None:
+    def __init__(self, row: int, column: int, color: str) -> None:
         """Init."""
         self._row = row
         self._column = column
@@ -83,6 +109,16 @@ class Tile:
     def column(self) -> int:
         """Column."""
         return self._column
+
+    @property
+    def color(self) -> str:
+        """Color."""
+        return self._color
+
+    @color.setter
+    def color(self, new_color: str) -> None:
+        """Change color."""
+        self._color = new_color
 
 class GameObject(Subject, Observer):
     """Class common to all game objects."""
@@ -117,6 +153,7 @@ class Board(Subject, Observer):
         self._screen = screen
         self._tile_size = tile_size
         self._objects: list[GameObject]= []
+        self._border = []
 
     def draw(self) -> None:
         """Draws every objects of the board."""
@@ -141,11 +178,11 @@ class Board(Subject, Observer):
                 return o
         return None
 
-    def create_fruit(self) -> Fruit:
+    def create_fruit(self, color: str) -> Fruit:
         """Create a new fruit."""
         fruit = None
         while fruit is None or self.detect_collision(fruit) is not None:
-            fruit = Fruit((random.randint(0, int(self._screen.get_height()/self._tile_size) - 1), random.randint(0, int(self._screen.get_width()/self._tile_size) - 1)), (255,0,0))  # noqa: S311
+            fruit = Fruit((random.randint(0, int(self._screen.get_height()/self._tile_size) - 1), random.randint(0, int(self._screen.get_width()/self._tile_size) - 1)), color)  # noqa: S311
         self.add_object(fruit)
 
     def notify_object_moved(self, obj: GameObject) -> None:
@@ -154,10 +191,15 @@ class Board(Subject, Observer):
         if o is not None:
             obj.notify_collision(o)
 
-    def notify_object_eaten(self, obj: GameObject) -> None:
+        # Check if the snake exits the screen
+        for tile in obj.tiles:
+            if not 0<=tile.row<=(self._screen.get_height()/self._tile_size - 1) or not 0<=tile.column<=(self._screen.get_width()/self._tile_size - 1):
+                raise GameOver()
+
+    def notify_object_eaten(self, obj: Fruit) -> None:
         """Remove the object eaten."""
         self.remove_object(obj)
-        self.create_fruit()
+        self.create_fruit(obj.color)
 
     @property
     def objects(self) -> list[GameObject]:
@@ -167,7 +209,7 @@ class Board(Subject, Observer):
 class CheckerBoard(GameObject):
     """Checkerboard as a background for the game."""
 
-    def __init__(self, size: argparse.Namespace, color1: tuple[int,int,int], color2: tuple[int,int,int]) -> None:
+    def __init__(self, size: argparse.Namespace, color1: str, color2: str) -> None:
         """Init."""
         super().__init__()
         self._size = size
@@ -197,12 +239,15 @@ class Dir(enum.Enum):
 class Snake(GameObject, Subject):
     """Snake object."""
 
-    def __init__(self, positions: list[tuple[int,int]], color: tuple[int,int,int], direction: Dir) -> None:
+    def __init__(self, positions: list[tuple[int,int]], body_color: str, head_color: str, direction: Dir) -> None:
         """Init."""
         super().__init__()
-        self._tiles = [Tile(p[0], p[1], color) for p in positions]
+        self._tiles = [Tile(positions[0][0], positions[0][1], head_color)]
+        for p in positions[1:]:
+            self._tiles.append(Tile(p[0], p[1], body_color))
         self._lenght= len(self._tiles)
-        self._color = color
+        self._body_color = body_color
+        self._head_color = head_color
         self._direction = direction
 
     def __len__(self) -> int:
@@ -212,7 +257,11 @@ class Snake(GameObject, Subject):
     def move(self) -> None:
         """Move the snake."""
         # moving the head, the snake becomes one tile longer
-        self._tiles.insert(0, self._tiles[0] + self._direction)
+        new_head = self._tiles[0] + self._direction
+        if new_head in self._tiles:
+            raise GameOver()
+        self._tiles.insert(0, new_head)
+        self._tiles[1].color = self._body_color
 
         # notify observers
         for obs in self.observers:
@@ -247,7 +296,7 @@ class Snake(GameObject, Subject):
 class Fruit(GameObject):
     """Fruit object."""
 
-    def __init__(self, position: tuple[int,int], color: tuple[int,int,int]) -> None:
+    def __init__(self, position: tuple[int,int], color: str) -> None:
         """Init."""
         super().__init__()
         self._tiles = [Tile(row=position[0], column=position[1], color=color)]
@@ -258,17 +307,44 @@ class Fruit(GameObject):
         """Return the operator on tiles."""
         return iter(self._tiles)
 
-def windowsize() -> argparse.Namespace:
+    @property
+    def color(self) -> str:
+        """Return the color of the fruit."""
+        return self._color
+
+def parser() -> argparse.Namespace:
     """Get the window size as an input for the game."""
     # using argparse to change the window size if wanted
     DEFAULT_WIDTH = 20
     DEFAULT_HEIGHT = 15
+    DEFAULT_FPS = 5
+    FPS_MIN = 1
+    FPS_MAX = 25
+    DEFAULT_FRUIT_COLOR = "#FF0000"
+    DEFAULT_SNAKE_BODY_COLOR = "#00FF00"
+    DEFAULT_SNAKE_HEAD_COLOR = "#0000FF"
 
     parser = argparse.ArgumentParser(description="Window size with numbers of tiles.")
     parser.add_argument("-w","--width", type=int, default=DEFAULT_WIDTH, help="Takes an integer value for the width in tiles of the game.")
     parser.add_argument("-e","--height", type=int, default=DEFAULT_HEIGHT, help="Takes an integer value for the height in tiles of the game.")
+    parser.add_argument("--fps", type=int, default=DEFAULT_FPS, help="Takes an integer value for the fps of the game.")
+    parser.add_argument("--fruit-color", default=DEFAULT_FRUIT_COLOR, help="Takes the color for the fruits.")
+    parser.add_argument("--snake-body-color", default=DEFAULT_SNAKE_BODY_COLOR, help="Takes the color for the snake body.")
+    parser.add_argument("--snake-head-color", default=DEFAULT_SNAKE_HEAD_COLOR, help="Takes the color for the snake head.")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if not (FPS_MIN <= args.fps <= FPS_MAX):
+        raise IntRangeError(args.fps, "FPS", FPS_MIN, FPS_MAX)
+
+    if not re.match(r"#([0-9A-Fa-f]){6}$", args.fruit_color):
+        raise ColorError(args.fruit_color, "--fruit-color")
+    if not re.match(r"#([0-9A-Fa-f]){6}$", args.snake_body_color):
+        raise ColorError(args.snake_body_color, "--snake-body-color")
+    if not re.match(r"#([0-9A-Fa-f]){6}$", args.snake_head_color):
+        raise ColorError(args.snake_head_color, "--snake-head-color")
+
+    return args
 
 def game() -> NoReturn:
     """Run the game."""
@@ -277,62 +353,60 @@ def game() -> NoReturn:
     DEFAULT_DIRECTION = Dir.RIGHT
 
     # initialisation
-    size = windowsize()
     pygame.init()
-    screen = pygame.display.set_mode((size.width*DEFAULT_TILE_SIZE, size.height*DEFAULT_TILE_SIZE))
-    clock = pygame.time.Clock()
-    pygame.display.set_caption("Snake - score : 0")
 
-    board = Board(screen=screen, tile_size=DEFAULT_TILE_SIZE)
+    try:
+        args = parser()
+        screen = pygame.display.set_mode((args.width*DEFAULT_TILE_SIZE, args.height*DEFAULT_TILE_SIZE))
+        clock = pygame.time.Clock()
+        pygame.display.set_caption("Snake - score : 0")
 
-    checkerboard = CheckerBoard(size, (255,255,255), (0,0,0))
-    snake = Snake(DEFAULT_STARTING_SNAKE, (0,255,0), DEFAULT_DIRECTION) # initial position of the snake
-    board.add_object(checkerboard)
-    board.add_object(snake)
+        board = Board(screen=screen, tile_size=DEFAULT_TILE_SIZE)
 
-    board.create_fruit()
-    board.create_fruit()
-    board.create_fruit()
-    board.create_fruit()
-    board.create_fruit()
-    board.create_fruit()
+        checkerboard = CheckerBoard(args, "#FFFFFF", "#000000")
+        snake = Snake(DEFAULT_STARTING_SNAKE, args.snake_body_color, args.snake_head_color, DEFAULT_DIRECTION) # initial position of the snake
+        board.add_object(checkerboard)
+        board.add_object(snake)
 
-    game_running = True
+        board.create_fruit(args.fruit_color)
 
-    # game loop
-    while game_running:
-        clock.tick(5)
+        game_running = True
 
-        for event in pygame.event.get():
+        # game loop
+        while game_running:
+            clock.tick(args.fps)
 
-            # quit game
-            if event.type == pygame.QUIT:
-                game_running = False
+            for event in pygame.event.get():
 
-            elif event.type == pygame.KEYDOWN:
                 # quit game
-                if event.key == pygame.K_q:
+                if event.type == pygame.QUIT:
                     game_running = False
 
-                # change the direction of the snake
-                if event.key == pygame.K_UP:
-                    snake.dir = Dir.UP
-                elif event.key == pygame.K_DOWN:
-                    snake.dir = Dir.DOWN
-                elif event.key == pygame.K_RIGHT:
-                    snake.dir = Dir.RIGHT
-                elif event.key == pygame.K_LEFT:
-                    snake.dir = Dir.LEFT
+                elif event.type == pygame.KEYDOWN:
+                    # quit game
+                    if event.key == pygame.K_q:
+                        game_running = False
 
-        snake.move()
+                    # change the direction of the snake
+                    if event.key == pygame.K_UP:
+                        snake.dir = Dir.UP
+                    elif event.key == pygame.K_DOWN:
+                        snake.dir = Dir.DOWN
+                    elif event.key == pygame.K_RIGHT:
+                        snake.dir = Dir.RIGHT
+                    elif event.key == pygame.K_LEFT:
+                        snake.dir = Dir.LEFT
 
-        board.draw()
+            snake.move()
 
-        pygame.display.set_caption(f"Snake - score : {len(snake) - 3}")
+            board.draw()
 
-        pygame.display.update()
+            pygame.display.set_caption(f"Snake - score : {len(snake) - 3}")
 
-    pygame.quit()
-    quit(0)
+            pygame.display.update()
+
+    except GameOver:
+        print(f"Game Over - score : {len(snake) - 4}")
+        pygame.quit()
 
 # game()
